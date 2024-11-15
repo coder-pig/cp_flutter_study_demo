@@ -130,7 +130,7 @@ class LineChartPainter extends CustomPainter {
   final int yMax;
   final int yStep;
   final List<Map<int, int>> data;
-  final Animation<double> _repaint;
+  final Animation<double> repaint;
 
   // 画板配置相关
   double width = 0.0;
@@ -141,6 +141,7 @@ class LineChartPainter extends CustomPainter {
   double distanceX = 0.0; // 绘制点间的水平距离
   double distanceY = 0.0; // 绘制点间的垂直距离
   double maxPointY = 0.0; // 最大点的Y坐标
+  double endPointX = 0.0; // 最后一个点的X坐标
 
   // 画笔配置相关
   final Paint linePaint = Paint()
@@ -152,17 +153,18 @@ class LineChartPainter extends CustomPainter {
     ..style = PaintingStyle.stroke
     ..strokeWidth = 1;
 
-  LineChartPainter(this.yMin, this.yMax, this.yStep, this.data, this._repaint) : super(repaint: _repaint);
+  LineChartPainter(this.yMin, this.yMax, this.yStep, this.data, this.repaint) : super(repaint: repaint);
 
   @override
   void paint(Canvas canvas, Size size) {
+    print("size: $size");
     width = size.width;
     height = size.height;
     maxWidth = width - 40;
     maxHeight = height - 40;
     canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFF0F0F0));
     canvas.save();
-    canvas.translate(30, height - 40);
+    canvas.translate(30, maxHeight);
     drawAxis(canvas, size);
     calculatePoints();
     drawLinesD(canvas);
@@ -218,8 +220,9 @@ class LineChartPainter extends CustomPainter {
     for (int i = 0; i < countX; i++) {
       final x = (i + 1) * distanceX;
       final y = -data[i].values.first * distanceY / yStep;
-      if (maxPointY < y) maxPointY = y;
+      if (maxPointY == 0 || maxPointY.abs() < y.abs()) maxPointY = y;
       pointList.add(Offset(x, y));
+      if (i == countX - 1) endPointX = x;
     }
   }
 
@@ -260,7 +263,9 @@ class LineChartPainter extends CustomPainter {
 
   // 三阶贝塞尔曲线
   void drawLinesD(Canvas canvas) {
-    print("调用了");
+    canvas.save();
+    Rect clipRect = Rect.fromLTWH(-40, -maxHeight + 20, width * repaint.value - 20, maxHeight);
+    canvas.clipRect(clipRect);
     final paint = Paint()
       ..color = Colors.grey
       ..style = PaintingStyle.stroke
@@ -282,28 +287,35 @@ class LineChartPainter extends CustomPainter {
           : Offset(distanceX / 3 * 2, nextY - currentY);
       path.relativeCubicTo(firstControlPoint.dx, firstControlPoint.dy, secondControlPoint.dx, secondControlPoint.dy,
           distanceX, -(currentY - nextY));
-      // 曲线的绘制控制点，帮助理解
-      // canvas.drawCircle(Offset(currentX + firstControlPoint.dx, currentY + firstControlPoint.dy), 2, controlPaint);
-      // canvas.drawCircle(Offset(currentX + secondControlPoint.dx, currentY + secondControlPoint.dy), 2, controlPaint);
-      // canvas.drawCircle(pointList[i], 2, paint);
-      // if (i == tempPointList.length - 2) canvas.drawCircle(tempPointList[i + 1], 2, linePaint);
+      // // 曲线的绘制控制点，帮助理解
+      canvas.drawCircle(Offset(currentX + firstControlPoint.dx, currentY + firstControlPoint.dy), 2, controlPaint);
+      canvas.drawCircle(Offset(currentX + secondControlPoint.dx, currentY + secondControlPoint.dy), 2, controlPaint);
+      canvas.drawCircle(pointList[i], 2, paint);
+      if (i == tempPointList.length - 2) canvas.drawCircle(tempPointList[i + 1], 2, linePaint);
     }
     blueLinePaint.style = PaintingStyle.fill;
-    blueLinePaint.shader = ui.Gradient.linear(
-        Offset.zero,
-        Offset(tempPointList.last.dx, maxPointY),
-        [
-          Colors.blue.withOpacity(1),
-          Colors.white.withOpacity(1),
-        ],
-        [0.0, 1],
-        TileMode.clamp,
-        // 旋转90度，让渐变从上往下
-        Matrix4.rotationZ(pi / 2).storage);
-    path.relativeLineTo(0, -tempPointList.last.dy);
-    path.relativeLineTo(-tempPointList.last.dx, 0);
-    print(-tempPointList.last.dy);
+    blueLinePaint.shader = ui.Gradient.linear(Offset(0, maxPointY), Offset.zero, [
+      Colors.blue.withOpacity(0.5),
+      Colors.blue.withOpacity(0.4),
+      Colors.blue.withOpacity(0.3),
+      Colors.blue.withOpacity(0.2),
+      Colors.blue.withOpacity(0.1),
+      Colors.white.withOpacity(0.3),
+    ], [
+      0.0,
+      0.2,
+      0.4,
+      0.6,
+      0.9,
+      1
+    ]);
+    // path.relativeLineTo(0, -tempPointList.last.dy);
+    // path.relativeLineTo(-tempPointList.last.dx, 0);
+    print("${endPointX}-$maxWidth");
+    path.lineTo(endPointX, 0);
+    path.lineTo(0, 0);
     canvas.drawPath(path, blueLinePaint);
+    canvas.restore();
   }
 
   @override

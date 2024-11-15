@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'bar_chart.dart';
 import 'line_chart.dart';
+import 'pie_chart.dart';
+import 'spider_chart.dart';
 
 void main() {
   runApp(const MyApp());
@@ -39,7 +41,17 @@ class HomePage extends StatelessWidget {
                 onPressed: () {
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const LineChartPage()));
                 },
-                child: const Text("折线图"))
+                child: const Text("折线图")),
+            ElevatedButton(
+                onPressed: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const PieChartPage()));
+                },
+                child: const Text("饼图")),
+            ElevatedButton(
+                onPressed: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const SpiderChartPage()));
+                },
+                child: const Text("蜘蛛/雷达图"))
           ],
         ),
       );

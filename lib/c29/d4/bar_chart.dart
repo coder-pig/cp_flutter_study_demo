@@ -59,9 +59,9 @@ class BarChartPainter extends CustomPainter {
   final int yMax;
   final int yStep;
   final List<Map<int, int>> data;
-  final Animation<double> _repaint;
+  final Animation<double> repaint;
 
-  BarChartPainter(this.yMin, this.yMax, this.yStep, this.data, this._repaint) : super(repaint: _repaint);
+  BarChartPainter(this.yMin, this.yMax, this.yStep, this.data, this.repaint) : super(repaint: repaint);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -106,7 +106,7 @@ class BarChartPainter extends CustomPainter {
       final x = data[i].keys.first;
       final y = data[i].values.first;
       final xPosition = startX + (distanceX + widthX) * i;
-      final yPosition = -maxHeight * y / (yMax - yMin) * _repaint.value;
+      final yPosition = -maxHeight * y / (yMax - yMin) * repaint.value;
       // 底部年份
       TextPainter(
           text: TextSpan(text: x.toString(), style: const TextStyle(color: Colors.grey, fontSize: 8)),

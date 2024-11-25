@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'bar_chart.dart';
 import 'line_chart.dart';
 import 'pie_chart.dart';
+import 'regular_polygon_calculate.dart';
 import 'spider_chart.dart';
 
 void main() {
@@ -51,7 +52,12 @@ class HomePage extends StatelessWidget {
                 onPressed: () {
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const SpiderChartPage()));
                 },
-                child: const Text("蜘蛛/雷达图"))
+                child: const Text("蜘蛛/雷达图")),
+            ElevatedButton(
+                onPressed: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const RegularPolygonCalculate()));
+                },
+                child: const Text("正多边形计算示意图"))
           ],
         ),
       );

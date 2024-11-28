@@ -1,4 +1,3 @@
-
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -63,3 +62,11 @@ Paragraph fastParagraph(String text, double width, [Color? textColor, TextAlign?
     ..addText(text);
   return paragraphBuilder.build()..layout(ParagraphConstraints(width: width));
 }
+
+// 快速生成TextPainter
+TextPainter fastTextPainter(String text, {TextStyle? style, TextDirection textDirection = TextDirection.ltr}) =>
+    TextPainter(
+      text: TextSpan(
+          text: text, style: style ?? const TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.bold)),
+      textDirection: textDirection,
+    );

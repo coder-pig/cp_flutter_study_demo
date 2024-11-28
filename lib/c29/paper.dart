@@ -8,7 +8,6 @@ class Paper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    print("Paper build");
     return LayoutBuilder(builder: (context, constraints) {
       return Container(
           width: constraints.hasBoundedWidth ? constraints.maxWidth : 300,

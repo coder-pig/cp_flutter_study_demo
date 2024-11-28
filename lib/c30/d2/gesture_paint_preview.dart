@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui' as ui;
 
 import 'package:cp_flutter_study_demo/c29/fast_widget_ext.dart';
 import 'package:cp_flutter_study_demo/c29/paper.dart';
@@ -6,6 +7,7 @@ import 'package:cp_flutter_study_demo/utils/color_ext.dart';
 import 'package:cp_flutter_study_demo/utils/text_ext.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
+import 'package:flutter/services.dart';
 
 class GesturePaintPreview extends StatelessWidget {
   const GesturePaintPreview({super.key});
@@ -28,17 +30,21 @@ class _PreviewContent extends StatefulWidget {
 
 class _PreviewContentState extends State<_PreviewContent> with SingleTickerProviderStateMixin {
   late AnimationController _animationController; // 动画控制器
+  final _imgNotifier = ValueNotifier<ui.Image?>(null);
 
   @override
   void initState() {
     super.initState();
+    loadImageFromAssets("assets/images/ic_lm.png")?.then((value) {
+      _imgNotifier.value = value;
+    });
     _animationController = AnimationController(vsync: this, lowerBound: 0, upperBound: 400);
   }
 
   @override
   void dispose() {
-    super.dispose();
     _animationController.dispose();
+    super.dispose();
   }
 
   @override
@@ -57,6 +63,15 @@ class _PreviewContentState extends State<_PreviewContent> with SingleTickerProvi
           RepaintBoundary(child: buildPanPreview()),
           fastText("VerticalDrag-垂直拖拽：下落小球", CPTextStyle.s16.bold.c(Colors.red)),
           RepaintBoundary(child: buildVerticalDragPreview()),
+          fastText("Scale-缩放：图片缩放、旋转、平移", CPTextStyle.s16.bold.c(Colors.red)),
+          // Tips：滚动视图和GestureDetector缩放会有冲突，比较恶心，这里直接跳
+          ElevatedButton(
+              onPressed: () {
+                Navigator.of(context, rootNavigator: true).push(MaterialPageRoute(builder: (context) {
+                  return BuildScalePreview(image: _imgNotifier.value!);
+                }));
+              },
+              child: const Text("跳转预览页")),
         ])));
   }
 
@@ -145,6 +160,52 @@ class _PreviewContentState extends State<_PreviewContent> with SingleTickerProvi
           verticalDragNotifier.startFallAnimation(400);
         },
         child: Paper(painter: VerticalDragPreviewPainter(verticalDragNotifier)),
+      ),
+    );
+  }
+}
+
+class BuildScalePreview extends StatelessWidget {
+  final ValueNotifier<Matrix4> matrix = ValueNotifier(Matrix4.identity());
+  final ui.Image image;
+
+  BuildScalePreview({super.key, required this.image});
+
+  @override
+  Widget build(BuildContext context) {
+    Matrix4 recodeMatrix = Matrix4.identity(); // 记录上一次的Matrix
+    Offset offset = Offset.zero;
+    return Scaffold(
+      appBar: AppBar(title: const Text("图片缩放、旋转、平移")),
+      body: Container(
+        padding: const EdgeInsets.all(10),
+        height: 600,
+        child: GestureDetector(
+          onScaleStart: (details) {
+            offset = details.focalPoint;
+          },
+          onScaleUpdate: (details) {
+            // 单指平移画布
+            if (details.pointerCount == 1) {
+              matrix.value = recodeMatrix.multiplied(
+                  Matrix4.translationValues((details.focalPoint.dx - offset.dx), (details.focalPoint.dy - offset.dy), 1));
+            } else {
+              // 旋转角度超过20度时，更新旋转矩阵
+              if ((details.rotation * 180 / pi).abs() > 20) {
+                matrix.value = recodeMatrix.multiplied(Matrix4.rotationZ(details.rotation));
+              } else {
+                // 处理缩放手势 (x、y轴等比例缩放，z轴保持不变缩放因子为1)
+                if (details.scale == 1.0) return;
+                matrix.value = recodeMatrix.multiplied(Matrix4.diagonal3Values(details.scale, details.scale, 1));
+              }
+            }
+          },
+          onScaleEnd: (details) {
+            // 结束时记录当前Matrix
+            recodeMatrix = matrix.value;
+          },
+          child: Paper(painter: ScalePreviewPainter(matrix, image)),
+        ),
       ),
     );
   }
@@ -341,7 +402,6 @@ class VerticalDragNotifier extends ChangeNotifier {
     });
     // 监听动画值变化通知刷新
     _animationController.addListener(() {
-      print("value: ${_animationController.value}");
       notifyListeners();
     });
     // 使用GravitySimulation模拟重力加速度，用它来驱动动画
@@ -389,4 +449,43 @@ class VerticalDragPreviewPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(VerticalDragPreviewPainter oldDelegate) => false;
+}
+
+class ScalePreviewPainter extends CustomPainter {
+  final ValueNotifier<Matrix4> matrix4;
+  final ui.Image image;
+
+  ScalePreviewPainter(this.matrix4, this.image) : super(repaint: matrix4);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.clipRect(Offset.zero & size);
+    final center = Offset(size.width / 2, size.height / 2);
+    final grayPaint = Paint()..color = Colors.grey.withAlpha(30);
+    canvas.drawRect(Offset.zero & size, grayPaint);
+    // 绘制灰色坐标轴
+    grayPaint.color = Colors.grey;
+    canvas.drawLine(Offset(0, center.dy), Offset(size.width, center.dy), grayPaint);
+    canvas.drawLine(Offset(center.dx, 0), Offset(center.dx, size.height), grayPaint);
+    // 保存画布状态再进行变换
+    canvas.save();
+    // 移动画布到中心点，使得绘制的图片以中心点为中心
+    canvas.translate(center.dx, center.dy);
+    canvas.transform(matrix4.value.storage);
+    // 绘制图片
+    final srcRect = Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble());
+    final dstRect = Rect.fromCircle(center: Offset.zero, radius: 50);
+    canvas.drawImageRect(image, srcRect, dstRect, Paint());
+    // 恢复画布状态
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(ScalePreviewPainter oldDelegate) => false;
+}
+
+// 加载图片数据解码为图片对象
+Future<ui.Image>? loadImageFromAssets(String path) async {
+  ByteData data = await rootBundle.load(path);
+  return decodeImageFromList(data.buffer.asUint8List());
 }

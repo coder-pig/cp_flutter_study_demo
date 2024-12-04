@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:cp_flutter_study_demo/c30/d3/bezier_calculate_preview.dart';
 import 'package:flutter/material.dart';
 
 void main() {
@@ -34,7 +35,7 @@ class _BallWaveProgressState extends State<BallWaveProgress> with TickerProvider
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 2));
+    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 3));
     _controller.repeat();
     _progressController = AnimationController(vsync: this, duration: const Duration(seconds: 5));
     final Animation<double> curvedAnimation = CurvedAnimation(
@@ -58,7 +59,6 @@ class _BallWaveProgressState extends State<BallWaveProgress> with TickerProvider
     _progressController.reset();
     _progressController.forward();
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -127,7 +127,9 @@ class BallWaveProgressPainter extends CustomPainter {
     // 将画板坐标系移动到中心
     canvas.translate(center.dx, center.dy);
     drawCircleProgress(canvas);
-    drawWaveFirst(canvas);
+    // drawWaveFirst(canvas);
+    // drawWaveSecond(canvas);
+    drawWaveThird(canvas);
     drawProgressText(canvas);
     canvas.restore();
   }
@@ -143,6 +145,7 @@ class BallWaveProgressPainter extends CustomPainter {
     circleProgressPaint
       ..color = circleProgressColor
       ..strokeCap = StrokeCap.round; // 设置线帽类型为圆形，看起来更圆润一些
+    // 从-90°开始顺时针绘制, 2 * pi 为一个圆
     canvas.drawArc(Rect.fromCircle(center: Offset.zero, radius: circleRadius), -0.5 * pi, 2 * pi * progress.value,
         false, circleProgressPaint);
   }
@@ -158,7 +161,7 @@ class BallWaveProgressPainter extends CustomPainter {
     textPainter.paint(canvas, Offset(0 - textPainter.width / 2, 0 - textPainter.height / 2));
   }
 
-  // 绘制水波纹
+  // 绘制水波纹-贝塞尔曲线
   drawWaveFirst(Canvas canvas) {
     canvas.save();
     double waveHeight = 25.0; // 波浪高度
@@ -205,6 +208,91 @@ class BallWaveProgressPainter extends CustomPainter {
     frontWavePath.close();
     canvas.drawPath(frontWavePath, frontWavePaint);
     canvas.restore();
+  }
+
+  drawWaveSecond(Canvas canvas) {
+    canvas.save();
+    canvas
+        .clipPath(Path()..addOval(Rect.fromCircle(center: Offset.zero, radius: circleRadius - circleStrokeWidth / 2)));
+    drawSinLine(canvas, waveColor.withAlpha(100), xDistance: circleRadius / 2);
+    drawSinLine(canvas, waveColor);
+    canvas.restore();
+  }
+
+  // 绘制正弦曲线
+  void drawSinLine(Canvas canvas, Color waveColor, {double xDistance = 0.0}) {
+    // x、y 的取值范围
+    double startX = -circleRadius;
+    double endX = circleRadius;
+    double startY = circleRadius;
+    double endY = -circleRadius;
+
+    // 曲线方程相关参数
+    double amplitude = 15.0; // 振幅
+    double angularVelocity = pi / circleRadius; // 角速度
+    double offsetX = circleRadius * 2 * animation.value; // x轴偏移
+    double offsetY = startY + (endY - startY - amplitude) * progress.value; // y轴偏移
+    // 画笔和Path
+    Paint sinePaint = Paint()
+      ..color = waveColor
+      ..style = PaintingStyle.fill
+      ..strokeWidth = 2
+      ..isAntiAlias = true;
+    Path path = Path();
+    // 循环计算出正弦曲线上的点，第一个点需要 moveTo，后面的直接 lineTo
+    for (double x = startX; x <= endX; x++) {
+      double y = amplitude * sin(angularVelocity * (x + offsetX + xDistance)) + offsetY;
+      x == startX ? path.moveTo(x, y) : path.lineTo(x, y);
+    }
+    // 依次连接右下角和左下角的点，然后闭合路径
+    path.lineTo(endX, startY);
+    path.lineTo(startX, startY);
+    path.close();
+    canvas.drawPath(path, sinePaint);
+  }
+
+  drawWaveThird(Canvas canvas) {
+    canvas.save();
+    canvas
+        .clipPath(Path()..addOval(Rect.fromCircle(center: Offset.zero, radius: circleRadius - circleStrokeWidth / 2)));
+    drawRRectWave(canvas, waveColor.withAlpha(100), xDistance: circleRadius / 2);
+    drawRRectWave(canvas, waveColor);
+    canvas.restore();
+  }
+
+  drawRRectWave(Canvas canvas, Color color, {double xDistance = 0.0}) {
+    double waveHeight = circleRadius; // 波浪高度为半径
+    double offsetY = -circleRadius * 2 * (1 - progress.value) + circleRadius; // 相对于原点的偏移
+    double rectWidth = circleRadius * 2; // 正方形宽度
+    double centerX = xDistance; // 中心点x坐标
+    double centerY = -offsetY + rectWidth / 2;  // 中心点y坐标
+
+    Paint rectPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+
+    // 从左上角开始绘制圆角矩形
+    Path rectPath = Path();
+    rectPath.moveTo(-circleRadius + waveHeight + xDistance, -offsetY);
+    rectPath.relativeLineTo(2 * (circleRadius - waveHeight), 0);
+    rectPath.relativeConicTo(waveHeight, 0, waveHeight, waveHeight, 1);
+    rectPath.relativeLineTo(0, 2 * (circleRadius - waveHeight));
+    rectPath.relativeConicTo(0, waveHeight, -waveHeight, waveHeight, 1);
+    rectPath.relativeLineTo(-2 * (circleRadius - waveHeight), 0);
+    rectPath.relativeConicTo(-waveHeight, 0, -waveHeight, -waveHeight, 1);
+    rectPath.relativeLineTo(0, -2 * (circleRadius - waveHeight));
+    rectPath.relativeConicTo(0, -waveHeight, waveHeight, -waveHeight, 1);
+    rectPath.close();
+
+    // 组合变换矩阵，平移旋转中心到原点，旋转，再平移回去
+    final Matrix4 matrix4 = Matrix4.identity()
+      ..translate(centerX, centerY)
+      ..rotateZ(2 * pi * animation.value)
+      ..translate(-centerX, -centerY);
+
+    // 绘制时顺带应用矩阵变换
+    canvas.drawPath(rectPath.transform(matrix4.storage), rectPaint);
   }
 
   @override

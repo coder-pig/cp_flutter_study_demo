@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:cp_flutter_study_demo/c29/d4/line_chart.dart';
 import 'package:cp_flutter_study_demo/c29/paper.dart';
 import 'package:cp_flutter_study_demo/utils/text_ext.dart';
@@ -25,6 +27,23 @@ class _PreviewContent extends StatefulWidget {
 }
 
 class _PreviewContentState extends State<_PreviewContent> with SingleTickerProviderStateMixin {
+  final ValueNotifier _progress = ValueNotifier<double>(0.0); // 进度值
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 2));
+    _controller.repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _progress.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -38,6 +57,10 @@ class _PreviewContentState extends State<_PreviewContent> with SingleTickerProvi
             Paper(painter: SecondOrderBezierPaint()),
             fastText("三阶贝塞尔曲线", CPTextStyle.s18.bold.c(Colors.redAccent)),
             Paper(painter: ThirdOrderBezierPaint()),
+            fastText("球型水波纹进度条绘制原理", CPTextStyle.s18.bold.c(Colors.redAccent)),
+            Paper(painter: BallWaveProgressBezierPaint(_progress, _controller)),
+            fastText("正弦函数", CPTextStyle.s18.bold.c(Colors.redAccent)),
+            Paper(painter: SinePaint()),
           ],
         ),
       ),
@@ -230,12 +253,97 @@ class ThirdOrderBezierPaint extends CustomPainter {
     b0Painter.layout();
     b0Painter.paint(canvas, Offset(b0.dx - 20, b0.dy - 25));
     drawBorderCircle(canvas, b0, fillColor: Colors.grey);
-
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
 
+class BallWaveProgressBezierPaint extends CustomPainter {
+  ValueNotifier progress = ValueNotifier<double>(30.0); // 进度值
+  final Animation<double> animation;
+
+  BallWaveProgressBezierPaint(this.progress, this.animation) : super(repaint: Listenable.merge([progress, animation]));
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    double width = size.width;
+    double height = size.height;
+    double circleRadius = 50.0;
+    canvas.clipRect(Offset.zero & size);
+    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.grey.withAlpha(20));
+    // 绘制圆圈
+    canvas.save();
+    canvas.translate(width * 0.75, height / 2 - circleRadius * 1.5);
+    canvas.drawCircle(
+        Offset.zero,
+        circleRadius,
+        Paint()
+          ..color = Colors.blue
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2);
+    // 裁剪绘制区域
+    canvas.clipPath(Path()..addOval(Rect.fromCircle(center: Offset.zero, radius: circleRadius)));
+    // 平移画布
+    canvas.translate(animation.value * circleRadius * 2, circleRadius * 2 * progress.value);
+    // 绘制曲线
+    Paint bezierPaint = Paint()
+      ..color = Colors.red
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    Path path = Path();
+    path.relativeMoveTo(-circleRadius * 3, circleRadius * 2);
+    path.relativeLineTo(0, -circleRadius * 2);
+    path.relativeConicTo(circleRadius * 0.5, -circleRadius * 0.7, circleRadius, 0, 1);
+    path.relativeConicTo(circleRadius * 0.5, circleRadius * 0.7, circleRadius, 0, 1);
+    path.relativeConicTo(circleRadius * 0.5, -circleRadius * 0.7, circleRadius, 0, 1);
+    path.relativeConicTo(circleRadius * 0.5, circleRadius * 0.7, circleRadius, 0, 1);
+    path.relativeLineTo(0, circleRadius * 2);
+    path.close();
+    canvas.drawPath(path, bezierPaint);
+    drawDashLineB(canvas, Offset(-circleRadius * 3, 0), Offset(circleRadius * 3, 0));
+    drawDashLineB(canvas, Offset(-circleRadius * 3, -circleRadius / 2), Offset(circleRadius * 3, -circleRadius / 2));
+    drawDashLineB(canvas, Offset(-circleRadius * 3, circleRadius / 2), Offset(circleRadius * 3, circleRadius / 2));
+    drawDashLineB(canvas, Offset(0, -circleRadius * 2), Offset(0, circleRadius * 2), isVertical: true);
+    drawDashLineB(canvas, Offset(-circleRadius / 2, -circleRadius * 2), Offset(-circleRadius / 2, circleRadius * 2),
+        isVertical: true);
+    drawDashLineB(canvas, Offset(circleRadius / 2, -circleRadius * 2), Offset(circleRadius / 2, circleRadius * 2),
+        isVertical: true);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class SinePaint extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    double width = size.width;
+    double height = size.height;
+    canvas.clipRect(Offset.zero & size);
+    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.grey.withAlpha(20));
+    double amplitude = 20.0;  // 振幅 (中线到最高点/最低点的距离)
+    double period = 2 * pi / 100; // 周期 (2π / 周期的长度)
+    double xOffset = 10.0; // x轴偏移
+    double yOffset = height / 2;  // y轴偏移
+    Paint sinePaint = Paint()
+      ..color = Colors.blue
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    Path path = Path();
+    path.moveTo(0, yOffset);
+    for (double x = 0; x < width; x++) {
+      double y = amplitude * sin(period * (x + xOffset)) + yOffset;
+      path.lineTo(x, y);
+    }
+    canvas.drawPath(path, sinePaint);
+    drawDashLineB(canvas, Offset(0, yOffset), Offset(width, yOffset));
+    drawDashLineB(canvas, Offset(width / 2, 0), Offset(width / 2, height), isVertical: true);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // 绘制带边框圆点
@@ -250,4 +358,31 @@ drawBorderCircle(Canvas canvas, Offset center,
     ..color = fillColor
     ..style = PaintingStyle.fill;
   canvas.drawCircle(center, radius, paint);
+}
+
+// 绘制虚线
+// 思路：PathMetrics + extractPath() 抠出原Path上某个范围的子路径
+void drawDashLineB(Canvas canvas, Offset start, Offset end,
+    {double dashWidth = 2.0, double spaceWidth = 2.0, bool isVertical = false}) {
+  // 挪到起点，然后根据方向创建完整路径
+  final path = Path()..moveTo(start.dx, start.dy);
+  if (isVertical) {
+    path.lineTo(start.dx, end.dy);
+  } else {
+    path.lineTo(end.dx, start.dy);
+  }
+  // 没有子路径，其实只返回一个PathMetrics
+  final pathMetrics = path.computeMetrics();
+  final paint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.5
+    ..color = Colors.grey;
+  for (final metric in pathMetrics) {
+    double distance = 0.0; // 子路径的起始点
+    while (distance < metric.length) {
+      final segment = metric.extractPath(distance, distance + dashWidth);
+      canvas.drawPath(segment, paint);
+      distance += dashWidth * spaceWidth; // dashWidth + spaceWidth
+    }
+  }
 }

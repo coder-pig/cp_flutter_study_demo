@@ -1,7 +1,5 @@
-import 'dart:async';
 import 'dart:math';
 
-import 'package:cp_flutter_study_demo/c30/d3/bezier_calculate_preview.dart';
 import 'package:flutter/material.dart';
 
 void main() {

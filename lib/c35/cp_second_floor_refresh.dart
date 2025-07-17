@@ -95,7 +95,14 @@ class CpSecondFloorRefreshState extends State<CpSecondFloorRefresh> {
               Container(
                 height: 60, 
                 color: Colors.red,
-                child: Text('刷新区域'),
+                child: Text(
+              _refreshState == CpRefreshState.pulling
+                ? '下拉刷新'
+                : _refreshState == CpRefreshState.canRefresh
+                  ? '放开刷新'
+                  : _refreshState == CpRefreshState.refreshing
+                    ? '刷新中'
+                    : '进入二楼')
               ),
             // 内容区域
             Expanded(
@@ -108,7 +115,7 @@ class CpSecondFloorRefreshState extends State<CpSecondFloorRefresh> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // 增强for循环，生成100个item
+                          // 增强for循环，生成50个item
                           ...List.generate(
                               50,
                               (index) => Container(
@@ -125,7 +132,17 @@ class CpSecondFloorRefreshState extends State<CpSecondFloorRefresh> {
               Container(
                 height: 60,
                 color: Colors.yellow,
-                child: Text('加载区域'),
+                child: Text(
+                  _loadState == CpLoadState.pulling
+                      ? '上拉加载更多'
+                      : _loadState == CpLoadState.canLoad
+                          ? '放开加载更多'
+                          : _loadState == CpLoadState.loading
+                              ? '加载中'
+                              : _loadState == CpLoadState.loaded
+                                  ? '加载完成'
+                                  : '没有更多数据',
+                ),
               ),
           ],
         ));
@@ -136,11 +153,9 @@ class CpSecondFloorRefreshState extends State<CpSecondFloorRefresh> {
     // 检查是否在顶部或底部
     _isAtTop = notification.metrics.extentBefore == 0.0;
     _isAtBottom = notification.metrics.extentAfter == 0.0;
-    // 四种通知类型 (滚动开始、滚动更新、滚动结束、过度滚动)
+    // 三种通知类型 (滚动开始、滚动结束、过度滚动)
     if (notification is ScrollStartNotification) {
       return _handleScrollStart(notification);
-    } else if (notification is ScrollUpdateNotification) {
-      return _handleScrollUpdate(notification);
     } else if (notification is ScrollEndNotification) {
       return _handleScrollEnd(notification);
     } else if (notification is OverscrollNotification) {
@@ -155,23 +170,18 @@ class CpSecondFloorRefreshState extends State<CpSecondFloorRefresh> {
     return false;
   }
 
-  // 处理滚动更新
-  bool _handleScrollUpdate(ScrollUpdateNotification notification) {
-    // 如果不是拖拽状态，或者没有拖拽手势，则不处理
-    if (!_isDragging || notification.dragDetails == null) return false;
-    // 获取滚动距离 (向上为负，向下为正)
-    final double delta = notification.scrollDelta ?? 0.0;
-    print("当前拖拽偏移量: $_dragOffset - 当前滚动距离: $delta");
-    // 下拉刷新逻辑 (处于顶部，启用刷新，下拉距离大于0)
-    if (_isAtTop && widget.enableRefresh && delta < 0) {
-      _dragOffset += -delta; // 拖拽偏移量
+  // 处理过度滚动 - 增强此方法来完成所有拖拽偏移量的更新
+  bool _handleOverscroll(OverscrollNotification notification) {
+    if (!_isDragging) return false;
+    // 下拉过度滚动 (负数，减负数=加绝对值)
+    if (notification.overscroll < 0 && widget.enableRefresh && _isAtTop) {
+      _dragOffset -= notification.overscroll;
       _updateRefreshState();
       return true;
     }
-
-    // 上拉加载逻辑 (处于底部，启用加载，上拉距离大于0)
-    if (_isAtBottom && widget.enableLoadMore && delta > 0) {
-      _dragOffset += delta; // 拖拽偏移量
+    // 上拉过度滚动
+    if (notification.overscroll > 0 && widget.enableLoadMore && _isAtBottom) {
+      _dragOffset += notification.overscroll;
       _updateLoadState();
       return true;
     }
@@ -199,25 +209,6 @@ class CpSecondFloorRefreshState extends State<CpSecondFloorRefresh> {
     } else if (_loadState != CpLoadState.idle) {
       // 如果不在空闲状态，则重置加载
       _resetLoad();
-    }
-    return false;
-  }
-
-  // 处理过度滚动
-  bool _handleOverscroll(OverscrollNotification notification) {
-    if (!_isDragging) return false;
-
-    // 下拉过度滚动
-    if (notification.overscroll < 0 && widget.enableRefresh) {
-      _dragOffset += -notification.overscroll;
-      _updateRefreshState();
-      return true;
-    }
-    // 上拉过度滚动
-    if (notification.overscroll > 0 && widget.enableLoadMore) {
-      _dragOffset += notification.overscroll;
-      _updateLoadState();
-      return true;
     }
     return false;
   }
@@ -325,14 +316,6 @@ class CpRefreshContainer {
 
   void _detach(CpSecondFloorRefreshState state) {
     if (this.state == state) this.state = null;
-  }
-
-  void refresh() {
-    state?._updateRefreshState();
-  }
-
-  void loadMore() {
-    state?._updateLoadState();
   }
 
   void showSecondFloor() {
